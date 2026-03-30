@@ -8,8 +8,19 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Loader2, Send, Check, Sparkles, Music, Mic2, History } from 'lucide-react';
 
-// Initialize Gemini
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+// Initialize Gemini lazily to prevent top-level crashes if the API key is missing
+let aiInstance: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is missing. Please set it in your environment variables.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
 
 interface Verse {
   author: string;
@@ -30,7 +41,29 @@ const TURNS = [
   { author: 'Michael', role: 'Michael' as const, color: 'rose' },
 ];
 
+function ErrorFallback({ error }: { error: Error }) {
+  return (
+    <div className="min-h-screen bg-bg flex items-center justify-center p-10 text-center">
+      <div className="max-w-md bg-bg-alt border border-rose-dim p-8">
+        <h2 className="text-rose-primary text-xl mb-4 font-display">Something went wrong</h2>
+        <p className="text-text-mid text-sm mb-6 font-serif italic">
+          {error.message.includes("GEMINI_API_KEY") 
+            ? "The AI connection is missing its key. If you're on Cloudflare, ensure GEMINI_API_KEY is set in your environment variables."
+            : error.message}
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="font-mono text-[10px] tracking-[3px] uppercase px-6 py-3 border border-rose-dim text-rose-primary hover:bg-rose-primary/10 transition-all"
+        >
+          Try Again
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  const [error, setError] = useState<Error | null>(null);
   const [currentTurn, setCurrentTurn] = useState(0);
   const [verses, setVerses] = useState<Verse[]>([]);
   const [input, setInput] = useState('');
@@ -48,6 +81,10 @@ export default function App() {
     }
   }, [verses, options, finalAnalysis]);
 
+  if (error) {
+    return <ErrorFallback error={error} />;
+  }
+
   const generateOptions = async () => {
     if (!input.trim()) return;
     setIsGenerating(true);
@@ -60,6 +97,7 @@ export default function App() {
     Return the options as a JSON array of objects, each with "vibe" (a short descriptive label) and "text" (the verse lines).`;
 
     try {
+      const ai = getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: prompt,
@@ -87,8 +125,9 @@ export default function App() {
 
       const data = JSON.parse(response.text || '{"options": []}');
       setOptions(data.options);
-    } catch (error) {
-      console.error("Error generating options:", error);
+    } catch (err) {
+      console.error("Error generating options:", err);
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setIsGenerating(false);
     }
@@ -120,13 +159,15 @@ export default function App() {
     Keep the tone poetic, insightful, and slightly gritty.`;
 
     try {
+      const ai = getAI();
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: prompt
       });
       setFinalAnalysis(response.text || "The song remains a mystery.");
-    } catch (error) {
-      console.error("Error generating analysis:", error);
+    } catch (err) {
+      console.error("Error generating analysis:", err);
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setIsAnalyzing(false);
     }
