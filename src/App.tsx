@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { Loader2, Send, Check, Sparkles, Music, Mic2, History } from 'lucide-react';
+import { Loader2, Send, Check, Sparkles, Music, Mic2, History, Copy } from 'lucide-react';
 
 // Initialize Gemini lazily to prevent top-level crashes if the API key is missing
 let aiInstance: GoogleGenAI | null = null;
@@ -83,6 +83,7 @@ export default function App() {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [finalAnalysis, setFinalAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +96,16 @@ export default function App() {
   if (error) {
     return <ErrorFallback error={error} />;
   }
+
+  const copyToClipboard = () => {
+    const fullText = verses.map(v => `${v.author}:\n${v.text}`).join('\n\n') + 
+      (finalAnalysis ? `\n\nANALYSIS:\n${finalAnalysis}` : '');
+    
+    navigator.clipboard.writeText(fullText).then(() => {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    });
+  };
 
   const generateOptions = async () => {
     if (!input.trim()) return;
@@ -372,9 +383,29 @@ export default function App() {
             <div className="absolute top-0 right-0 p-4 opacity-10">
               <Music className="w-12 h-12" />
             </div>
-            <h2 className="text-xl text-amber-primary mb-6 flex items-center gap-2">
-              <Sparkles className="w-5 h-5" />
-              The Analysis
+            <h2 className="text-xl text-amber-primary mb-6 flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5" />
+                The Analysis
+              </span>
+              <button 
+                onClick={copyToClipboard}
+                className={`font-mono text-[8px] tracking-[2px] uppercase px-3 py-2 border transition-all flex items-center gap-2
+                  ${isCopied ? 'border-amber-primary text-amber-primary bg-amber-primary/10' : 'border-border-dim text-text-dim hover:text-amber-primary hover:border-amber-dim'}
+                `}
+              >
+                {isCopied ? (
+                  <>
+                    <Check className="w-3 h-3" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    Copy Song
+                  </>
+                )}
+              </button>
             </h2>
             <div className="prose prose-invert max-w-none text-text-mid leading-relaxed italic">
               {finalAnalysis.split('\n').map((line, i) => (
