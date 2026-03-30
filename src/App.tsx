@@ -13,7 +13,11 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAI = () => {
   if (!aiInstance) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Check multiple possible locations for the API key
+    const apiKey = 
+      process.env.GEMINI_API_KEY || 
+      (import.meta.env && import.meta.env.VITE_GEMINI_API_KEY);
+
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY is missing. Please set it in your environment variables.");
     }
@@ -45,17 +49,24 @@ function ErrorFallback({ error }: { error: Error }) {
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center p-10 text-center">
       <div className="max-w-md bg-bg-alt border border-rose-dim p-8">
-        <h2 className="text-rose-primary text-xl mb-4 font-display">Something went wrong</h2>
+        <h2 className="text-rose-primary text-xl mb-4 font-display">Connection Required</h2>
         <p className="text-text-mid text-sm mb-6 font-serif italic">
           {error.message.includes("GEMINI_API_KEY") 
-            ? "The AI connection is missing its key. If you're on Cloudflare, ensure GEMINI_API_KEY is set in your environment variables."
+            ? "The AI connection is missing its key. On Cloudflare, ensure GEMINI_API_KEY is set in your Pages dashboard under 'Environment Variables' for BOTH 'Production' and 'Preview' environments."
             : error.message}
         </p>
+        <div className="text-[10px] text-text-dim font-mono mb-6 space-y-2 text-left bg-bg p-4 border border-border-dim">
+          <p>1. Go to Cloudflare Dashboard</p>
+          <p>2. Pages → Your Project → Settings</p>
+          <p>3. Environment Variables → Add Variable</p>
+          <p>4. Name: <span className="text-amber-primary">GEMINI_API_KEY</span></p>
+          <p>5. Save and <span className="text-amber-primary">Redeploy</span></p>
+        </div>
         <button 
           onClick={() => window.location.reload()}
           className="font-mono text-[10px] tracking-[3px] uppercase px-6 py-3 border border-rose-dim text-rose-primary hover:bg-rose-primary/10 transition-all"
         >
-          Try Again
+          Check Again
         </button>
       </div>
     </div>
