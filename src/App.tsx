@@ -5,25 +5,27 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { Loader2, Send, Check, Sparkles, Music, Mic2, History, Copy } from 'lucide-react';
 
-// Initialize Gemini lazily to prevent top-level crashes if the API key is missing
-let aiInstance: GoogleGenAI | null = null;
+// Proxy call to Gemini
+const callGemini = async (model: string, contents: any, config?: any, systemInstruction?: string) => {
+  const response = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, contents, config, systemInstruction })
+  });
 
-const getAI = () => {
-  if (!aiInstance) {
-    // Check multiple possible locations for the API key
-    const apiKey = 
-      process.env.GEMINI_API_KEY || 
-      (import.meta.env && import.meta.env.VITE_GEMINI_API_KEY);
-
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is missing. Please set it in your environment variables.");
-    }
-    aiInstance = new GoogleGenAI({ apiKey });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to call Gemini API');
   }
-  return aiInstance;
+
+  // Extract text from the response structure
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) {
+    throw new Error('No text returned from Gemini');
+  }
+  return text;
 };
 
 interface Verse {
@@ -119,22 +121,21 @@ export default function App() {
     Return the options as a JSON array of objects, each with "vibe" (a short descriptive label) and "text" (the verse lines).`;
 
     try {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
+      const text = await callGemini(
+        "gemini-3-flash-preview",
+        prompt,
+        {
           responseMimeType: "application/json",
           responseSchema: {
-            type: Type.OBJECT,
+            type: "OBJECT",
             properties: {
               options: {
-                type: Type.ARRAY,
+                type: "ARRAY",
                 items: {
-                  type: Type.OBJECT,
+                  type: "OBJECT",
                   properties: {
-                    vibe: { type: Type.STRING },
-                    text: { type: Type.STRING }
+                    vibe: { type: "STRING" },
+                    text: { type: "STRING" }
                   },
                   required: ["vibe", "text"]
                 }
@@ -143,9 +144,9 @@ export default function App() {
             required: ["options"]
           }
         }
-      });
+      );
 
-      const data = JSON.parse(response.text || '{"options": []}');
+      const data = JSON.parse(text || '{"options": []}');
       setOptions(data.options);
     } catch (err) {
       console.error("Error generating options:", err);
@@ -181,12 +182,8 @@ export default function App() {
     Keep the tone poetic, insightful, and slightly gritty.`;
 
     try {
-      const ai = getAI();
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt
-      });
-      setFinalAnalysis(response.text || "The song remains a mystery.");
+      const text = await callGemini("gemini-3-flash-preview", prompt);
+      setFinalAnalysis(text || "The song remains a mystery.");
     } catch (err) {
       console.error("Error generating analysis:", err);
       setError(err instanceof Error ? err : new Error(String(err)));

@@ -1,0 +1,5 @@
+name = "collab-song-builder"
+pages_build_output_dir = "dist"
+
+[vars]
+# GEMINI_API_KEY should be set in the Cloudflare dashboard for security
